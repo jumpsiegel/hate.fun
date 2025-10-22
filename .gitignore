@@ -1,0 +1,11 @@
+/target
+.claude
+
+# Testing artifacts
+.program-id
+.validator-ledger/
+.validator-logs/
+.validator-pid
+
+# Build artifacts
+dist/
