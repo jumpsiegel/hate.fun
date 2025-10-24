@@ -9,6 +9,7 @@ use pinocchio::{
 use crate::{
     error::HateFunError,
     state::{Bucket, pda},
+    verification::calculate_flush_threshold,
 };
 
 /// FlushEscrow instruction has no additional data
@@ -50,11 +51,9 @@ pub fn process_flush_escrow(
     // Get escrow balance
     let escrow_balance = escrow_to_flush.lamports();
 
-    // Calculate required threshold: last_swap * (10000 + min_increase_bps) / 10000
-    let threshold = bucket.last_swap
-        .checked_mul(10000 + bucket.min_increase_bps as u64)
-        .ok_or(HateFunError::Overflow)?
-        .checked_div(10000)
+    // Calculate required threshold using VERIFIED function
+    // This is the same code Kani proved correct in src/verification.rs
+    let threshold = calculate_flush_threshold(bucket.last_swap, bucket.min_increase_bps)
         .ok_or(HateFunError::Overflow)?;
 
     // Verify escrow balance meets threshold

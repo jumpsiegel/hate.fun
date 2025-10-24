@@ -9,6 +9,7 @@ use pinocchio::{
 use crate::{
     error::HateFunError,
     state::{Bucket, pda},
+    verification::{calculate_payout_distribution, sum_balances},
 };
 
 /// ClaimPayout instruction has no additional data
@@ -70,33 +71,28 @@ pub fn process_claim_payout(
         return Err(HateFunError::ClaimTooEarly.into());
     }
 
-    // Calculate total balance
-    let main_balance = main_bucket.lamports();
-    let escrow_a_balance = escrow_a.lamports();
-    let escrow_b_balance = escrow_b.lamports();
-    let bucket_balance = bucket_account.lamports();
-
-    let total = main_balance
-        .checked_add(escrow_a_balance)
-        .ok_or(HateFunError::Overflow)?
-        .checked_add(escrow_b_balance)
-        .ok_or(HateFunError::Overflow)?
-        .checked_add(bucket_balance)
+    // Calculate total balance using VERIFIED function
+    let balances = [
+        main_bucket.lamports(),
+        escrow_a.lamports(),
+        escrow_b.lamports(),
+        bucket_account.lamports(),
+    ];
+    let total = sum_balances(&balances)
         .ok_or(HateFunError::Overflow)?;
 
-    // Calculate fee distributions
-    let creator_cut = (total as u128 * bucket.creator_fee_bps as u128 / 10000) as u64;
-    let claimer_cut = (total as u128 * bucket.claimer_fee_bps as u128 / 10000) as u64;
-    let winner_cut = total
-        .checked_sub(creator_cut)
-        .ok_or(HateFunError::Overflow)?
-        .checked_sub(claimer_cut)
-        .ok_or(HateFunError::Overflow)?;
+    // Calculate fee distributions using VERIFIED function
+    // Kani proved this conserves value: creator_cut + claimer_cut + winner_cut = total
+    let (creator_cut, claimer_cut, winner_cut) = calculate_payout_distribution(
+        total,
+        bucket.creator_fee_bps,
+        bucket.claimer_fee_bps,
+    ).ok_or(HateFunError::Overflow)?;
 
     // Transfer funds
     // First, collect all funds to bucket account
     unsafe {
-        *bucket_account.borrow_mut_lamports_unchecked() += main_balance + escrow_a_balance + escrow_b_balance;
+        *bucket_account.borrow_mut_lamports_unchecked() += balances[0] + balances[1] + balances[2];
         *main_bucket.borrow_mut_lamports_unchecked() = 0;
         *escrow_a.borrow_mut_lamports_unchecked() = 0;
         *escrow_b.borrow_mut_lamports_unchecked() = 0;

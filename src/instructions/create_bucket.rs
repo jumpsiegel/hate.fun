@@ -11,6 +11,7 @@ use crate::{
     error::HateFunError,
     state::{Bucket, pda},
     system_program,
+    verification::{validate_fees, validate_min_increase},
 };
 use super::{read_u64, read_u16, read_pubkey};
 
@@ -44,8 +45,9 @@ pub fn process_create_bucket(
     let mut seed_bytes = [0u8; 32];
     seed_bytes.copy_from_slice(&data[110..142]);
 
-    // Validate parameters
-    if creator_fee_bps as u32 + claimer_fee_bps as u32 > 2000 {
+    // Validate parameters using VERIFIED functions
+    // Kani proved these enforce the correct bounds
+    if !validate_fees(creator_fee_bps, claimer_fee_bps) {
         return Err(HateFunError::FeesTooHigh.into());
     }
 
@@ -53,7 +55,7 @@ pub fn process_create_bucket(
         return Err(HateFunError::CreatorMustBeDifferent.into());
     }
 
-    if min_increase_bps < 100 || min_increase_bps > 5000 {
+    if !validate_min_increase(min_increase_bps) {
         return Err(HateFunError::InvalidMinimumIncrease.into());
     }
 
