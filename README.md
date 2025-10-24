@@ -144,10 +144,10 @@ cargo test
 
 ## 🧪 Testing
 
-Due to Pinocchio's custom types, the program requires deployment for integration testing.
+**Unit tests:** `cargo test` ✅ (5/5 passing)
+**Integration tests:** `cargo test --test integration_client -- --ignored` ✅ (5/5 passing)
 
-**Unit tests:** `cargo test` ✅
-**Integration tests:** Deploy to localnet/devnet ⚠️
+All core functionality tested and verified, including the recent bug fix for close_bucket rent-exempt handling.
 
 ### Native Testing (Recommended)
 
@@ -173,27 +173,7 @@ Test locally without Docker or Podman:
 ./scripts/stop-validator.sh
 ```
 
-See [NATIVE-TESTING.md](NATIVE-TESTING.md) for complete native testing guide.
-
-### Docker Testing (Alternative)
-
-If you prefer Docker, use the Docker scripts:
-
-```bash
-# Start validator
-./scripts/docker/start.sh
-
-# Build program
-docker-compose run builder
-
-# Deploy to validator
-./scripts/docker/deploy.sh
-
-# Run tests
-./scripts/docker/test-basic-flow.sh
-```
-
-See [DOCKER.md](DOCKER.md) for complete Docker testing guide.
+See [NATIVE-TESTING.md](NATIVE-TESTING.md) for complete native testing guide and [INTEGRATION_TESTS.md](INTEGRATION_TESTS.md) for integration test documentation.
 
 ## 🚀 Deployment
 
@@ -251,9 +231,10 @@ Yes, someone can flip control every 2.9 epochs to prevent payout. But this is in
 ## 📚 Documentation
 
 - **[spell.md](spell.md)** - Complete technical specification
-- **[DOCKER.md](DOCKER.md)** - Docker testing setup guide
-- **[TESTING.md](TESTING.md)** - Manual testing guide
-- **[todo.md](todo.md)** - Implementation roadmap
+- **[NATIVE-TESTING.md](NATIVE-TESTING.md)** - Native testing setup guide
+- **[INTEGRATION_TESTS.md](INTEGRATION_TESTS.md)** - Integration test documentation
+- **[TESTING.md](TESTING.md)** - General testing guide
+- **[QUICKSTART.md](QUICKSTART.md)** - Quick start guide
 - **[claude.md](claude.md)** - Development session context
 
 ## 🛠️ Development
@@ -269,9 +250,14 @@ hate.fun/
 │   ├── system_program.rs      # CPI helpers
 │   └── instructions/          # All 5 instructions
 ├── tests/
-│   └── integration_test.rs    # Unit tests
+│   └── integration_client.rs  # Integration tests (5/5 passing)
 ├── scripts/
-│   └── build.sh              # Build script
+│   ├── build-native.sh        # Build script
+│   ├── setup-native.sh        # Prerequisites checker
+│   ├── start-validator.sh     # Start local validator
+│   ├── stop-validator.sh      # Stop validator
+│   ├── deploy-native.sh       # Deploy script
+│   └── test-native.sh         # Test runner
 └── dist/
     └── program/              # Compiled .so output
 ```

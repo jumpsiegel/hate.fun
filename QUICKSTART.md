@@ -1,67 +1,84 @@
 # hate.fun Quick Start Guide
 
-Get up and running with hate.fun in 5 minutes using Docker.
+Get up and running with hate.fun in 5 minutes using native tools (no Docker required).
 
 ## Prerequisites
 
-- Docker & Docker Compose installed
-- `jq` installed (for JSON parsing)
+Run the setup checker to verify prerequisites:
+
+```bash
+./scripts/setup-native.sh
+```
+
+Required tools:
+- **Rust & Cargo** - For building the program
+- **Solana CLI** - For deployment and interaction
+- **cargo-build-sbf** - For building Solana programs (part of Agave toolchain)
 
 ## Steps
 
-### 1. Start Local Test Validator
+### 1. Check Prerequisites
 
 ```bash
-./scripts/docker/start.sh
+./scripts/setup-native.sh
 ```
 
-Wait for: `✅ Validator is ready!`
+This will check what's installed and provide installation instructions for missing tools.
 
 ### 2. Build the Program
 
 ```bash
-docker-compose run builder
+./scripts/build-native.sh
 ```
 
-Output: `dist/program/hate_fun.so` (~20KB)
+Output: `dist/program/hate_fun.so` (~32KB)
 
-### 3. Deploy to Validator
+### 3. Start Local Test Validator
 
 ```bash
-./scripts/docker/deploy.sh
+./scripts/start-validator.sh
+```
+
+Wait for: `✅ Validator is ready!`
+
+### 4. Deploy to Validator
+
+```bash
+./scripts/deploy-native.sh
 ```
 
 Output: Program ID saved to `.program-id`
 
-### 4. Verify Deployment
+### 5. Run Tests
 
 ```bash
-# Get program info
-PROGRAM_ID=$(cat .program-id)
-docker exec hate_fun_validator solana program show $PROGRAM_ID --url http://localhost:8899
-
-# Check epoch
-docker exec hate_fun_validator solana epoch-info --url http://localhost:8899
+./scripts/test-native.sh
 ```
 
-## What's Next?
+This runs:
+- Unit tests (5/5 passing)
+- Verifies deployment
+- Shows program info
 
-### Run Example Tests
+### 6. Run Integration Tests (Optional)
 
 ```bash
-./scripts/docker/test-basic-flow.sh
+cargo test --test integration_client -- --ignored --nocapture
 ```
 
-### View Validator Logs
+This runs comprehensive integration tests:
+- ✅ test_create_bucket
+- ✅ test_deposit_and_flush
+- ✅ test_full_flow (multiple flips)
+- ✅ test_close_bucket_before_flip
+- ✅ test_validation_fees_too_high
+
+All 5 tests should pass!
+
+## Stop Everything
 
 ```bash
-docker-compose logs -f validator
-```
-
-### Stop Everything
-
-```bash
-./scripts/docker/stop.sh
+./scripts/stop-validator.sh
 ```
 
 ## Connection Info
@@ -72,7 +89,7 @@ docker-compose logs -f validator
 
 ## Creating Your First Bucket
 
-You'll need a client SDK to interact with the program. Here's the instruction format:
+You can use the integration test client as a reference for building transactions.
 
 ### Instruction: `create_bucket` (discriminator: 0)
 
@@ -95,42 +112,64 @@ You'll need a client SDK to interact with the program. Here's the instruction fo
 - [110..142] seed (32 bytes)
 
 **Example parameters:**
-```javascript
-{
-  address_a: Keypair.generate().publicKey,
-  address_b: Keypair.generate().publicKey,
-  creator_address: wallet.publicKey,
-  creator_fee_bps: 500,      // 5%
-  claimer_fee_bps: 50,       // 0.5%
-  initial_last_swap: 1_000_000_000,  // 1 SOL
-  min_increase_bps: 500,     // 5%
-  seed: randomBytes(32)
-}
+```rust
+address_a: Keypair::generate().pubkey()
+address_b: Keypair::generate().pubkey()
+creator_address: wallet.pubkey()
+creator_fee_bps: 500       // 5%
+claimer_fee_bps: 50        // 0.5%
+initial_last_swap: 1_000_000_000  // 1 SOL
+min_increase_bps: 500      // 5%
+seed: rand::random()       // 32 random bytes
 ```
 
+See `tests/integration_client.rs` for complete implementation examples.
+
 ## Troubleshooting
+
+### Prerequisites missing
+
+Run:
+```bash
+./scripts/setup-native.sh
+```
+
+Follow the installation instructions provided.
 
 ### Validator won't start
 
 ```bash
-docker-compose logs validator
-# Look for port conflicts or permission issues
+# Check if another validator is running
+pgrep -f test-validator
+
+# Stop existing validator
+./scripts/stop-validator.sh
+
+# Check logs
+tail -f .validator-logs/validator.log
 ```
 
 ### Build fails
 
 ```bash
-# Clean and retry
-docker-compose down
-docker volume rm hate_fun_cargo-cache
-docker-compose run builder
+# Verify cargo-build-sbf is installed
+which cargo-build-sbf
+
+# If missing, install Agave:
+sh -c "$(curl -sSfL https://release.anza.xyz/stable/install)"
 ```
 
 ### Deployment fails
 
 ```bash
 # Check validator is running
-docker-compose ps
+solana cluster-version --url http://localhost:8899
+
+# Check balance
+solana balance --url http://localhost:8899
+
+# Request airdrop if needed
+solana airdrop 10 --url http://localhost:8899
 
 # Check binary exists
 ls -lh dist/program/hate_fun.so
@@ -138,12 +177,39 @@ ls -lh dist/program/hate_fun.so
 
 ## Full Documentation
 
-- **[DOCKER.md](DOCKER.md)** - Complete Docker guide
+- **[NATIVE-TESTING.md](NATIVE-TESTING.md)** - Complete native testing guide
+- **[INTEGRATION_TESTS.md](INTEGRATION_TESTS.md)** - Integration test documentation
 - **[spell.md](spell.md)** - Technical specification
 - **[README.md](README.md)** - Project overview
 
 ## Need Help?
 
-1. Check [DOCKER.md](DOCKER.md) for detailed troubleshooting
-2. Review logs: `docker-compose logs validator`
-3. Verify validator health: `docker exec hate_fun_validator solana cluster-version --url http://localhost:8899`
+1. Check [NATIVE-TESTING.md](NATIVE-TESTING.md) for detailed troubleshooting
+2. Review logs: `tail -f .validator-logs/validator.log`
+3. Verify validator health: `solana cluster-version --url http://localhost:8899`
+4. Check program info: `solana program show $(cat .program-id) --url http://localhost:8899`
+
+## What's Next?
+
+- Study the integration tests in `tests/integration_client.rs`
+- Try modifying test parameters
+- Build your own client SDK
+- Deploy to devnet for more realistic testing
+
+## Development Workflow
+
+```bash
+# Make changes to code
+vim src/instructions/some_file.rs
+
+# Rebuild
+./scripts/build-native.sh
+
+# Redeploy (validator must be running)
+solana program deploy dist/program/hate_fun.so --program-id dist/program/hate_fun-keypair.json
+
+# Test
+cargo test --test integration_client -- --ignored --nocapture
+```
+
+Happy hacking! 🚀
