@@ -22,8 +22,17 @@ pub fn process_deposit_to_escrow(
 
     let amount = read_u64(data, 0)?;
 
+    // Validate deposit amount
+    // Prevent zero deposits (standardized to use HateFunError)
     if amount == 0 {
-        return Err(ProgramError::InvalidInstructionData);
+        return Err(HateFunError::ZeroAmountDeposit.into());
+    }
+
+    // Prevent dust deposits that could complicate bucket closure
+    // Minimum 0.000001 SOL (1,000 lamports) to prevent griefing
+    const MINIMUM_DEPOSIT: u64 = 1_000; // 0.000001 SOL
+    if amount < MINIMUM_DEPOSIT {
+        return Err(HateFunError::DepositTooSmall.into());
     }
 
     // Parse accounts

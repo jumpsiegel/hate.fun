@@ -91,6 +91,11 @@ pub fn process_claim_payout(
 
     // Transfer funds
     // First, collect all funds to bucket account
+    // SAFETY: These unsafe operations are justified because:
+    // 1. We've verified all account ownership and PDAs above
+    // 2. We've calculated total using verified sum_balances (no overflow)
+    // 3. The transaction is atomic - either all transfers succeed or none do
+    // 4. We collect funds first, then validate, then distribute
     unsafe {
         *bucket_account.borrow_mut_lamports_unchecked() += balances[0] + balances[1] + balances[2];
         *main_bucket.borrow_mut_lamports_unchecked() = 0;
@@ -98,7 +103,18 @@ pub fn process_claim_payout(
         *escrow_b.borrow_mut_lamports_unchecked() = 0;
     }
 
+    // Validate bucket has sufficient balance for all distributions
+    // This should always pass due to value conservation proof, but serves as defense-in-depth
+    let bucket_balance_after_collection = bucket_account.lamports();
+    if bucket_balance_after_collection < total {
+        return Err(HateFunError::Overflow.into()); // Insufficient funds (should never happen)
+    }
+
     // Now distribute from bucket account
+    // SAFETY: These unsafe operations are justified because:
+    // 1. We validated bucket has sufficient balance above
+    // 2. Kani proof guarantees creator_cut + claimer_cut + winner_cut = total (no underflow)
+    // 3. The transaction is atomic - either all distributions succeed or none do
     unsafe {
         *bucket_account.borrow_mut_lamports_unchecked() -= creator_cut;
         *creator.borrow_mut_lamports_unchecked() += creator_cut;

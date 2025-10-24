@@ -25,6 +25,10 @@ pub enum HateFunError {
     InvalidEscrow = 9,
     /// Arithmetic overflow
     Overflow = 10,
+    /// Deposit amount is too small (below minimum)
+    DepositTooSmall = 11,
+    /// Zero amount deposit not allowed
+    ZeroAmountDeposit = 12,
 }
 
 impl From<HateFunError> for ProgramError {

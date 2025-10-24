@@ -61,9 +61,16 @@ pub fn validate_min_increase(min_increase_bps: u16) -> bool {
 }
 
 /// Check if escrow balance is considered "empty" (at or below dust threshold)
-/// This is the HF-01 security issue: 0.01 SOL threshold may allow creator to seize deposits
+/// HISTORICAL (HF-01 VULNERABILITY): Used to compare against 0.01 SOL arbitrary threshold
+/// FIXED: Now uses actual rent-exempt minimum in close_bucket instruction
 pub fn is_escrow_empty(balance: u64, dust_threshold: u64) -> bool {
     balance <= dust_threshold
+}
+
+/// Check if escrow is empty using rent-exempt minimum (HF-01 FIX)
+/// Returns true if balance is at or below rent-exempt minimum (no user deposits)
+pub fn is_escrow_empty_fixed(balance: u64, rent_exempt_minimum: u64) -> bool {
+    balance <= rent_exempt_minimum
 }
 
 // ========== KANI PROOF HARNESSES ==========
@@ -212,7 +219,27 @@ mod proofs {
         }
     }
 
-    // Proof 8: Fee calculation doesn't overflow for max fees
+    // Proof 8: Verify HF-01 fix - rent-exempt minimum protects all legitimate deposits
+    #[kani::proof]
+    fn verify_escrow_empty_check_fixed() {
+        let balance: u64 = kani::any();
+        let rent_exempt_minimum: u64 = 890_880; // Typical rent-exempt amount
+
+        let is_empty = is_escrow_empty_fixed(balance, rent_exempt_minimum);
+
+        // Property: Only rent-exempt balance (or less) is considered empty
+        if balance <= rent_exempt_minimum {
+            assert!(is_empty);
+        }
+
+        // Property: ANY balance above rent-exempt is protected (even 1 lamport)
+        // This fixes HF-01 - no arbitrary threshold that allows seizure of legitimate deposits
+        if balance > rent_exempt_minimum {
+            assert!(!is_empty);
+        }
+    }
+
+    // Proof 9: Fee calculation doesn't overflow for max fees
     #[kani::proof]
     fn verify_max_fee_calculation() {
         let total: u64 = kani::any();
@@ -295,5 +322,20 @@ mod tests {
 
         // Only above threshold is safe
         assert!(!is_escrow_empty(10_000_001, dust_threshold));
+    }
+
+    #[test]
+    fn test_hf01_fix() {
+        // HF-01 FIX: Use rent-exempt minimum instead of arbitrary threshold
+        let rent_exempt_minimum = 890_880; // Typical rent-exempt for empty account
+
+        // With fix, only rent-exempt balance is considered empty
+        assert!(is_escrow_empty_fixed(890_880, rent_exempt_minimum)); // Exactly rent-exempt
+        assert!(is_escrow_empty_fixed(890_879, rent_exempt_minimum)); // Below rent-exempt
+
+        // Any deposit above rent-exempt is protected
+        assert!(!is_escrow_empty_fixed(890_881, rent_exempt_minimum)); // 1 lamport deposit
+        assert!(!is_escrow_empty_fixed(1_000_000, rent_exempt_minimum)); // 0.001 SOL deposit
+        assert!(!is_escrow_empty_fixed(5_000_000, rent_exempt_minimum)); // 0.005 SOL deposit (was vulnerable)
     }
 }

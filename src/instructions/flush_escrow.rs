@@ -66,6 +66,11 @@ pub fn process_flush_escrow(
     let current_epoch = clock.epoch;
 
     // Transfer entire escrow balance to main bucket
+    // SAFETY: These unsafe operations are justified because:
+    // 1. We've verified all account ownership and PDAs above
+    // 2. We've calculated threshold using verified calculate_flush_threshold (no overflow)
+    // 3. We've validated escrow_balance >= threshold
+    // 4. The transaction is atomic - either all transfers succeed or none do
     unsafe {
         *escrow_to_flush.borrow_mut_lamports_unchecked() = 0;
         *main_bucket.borrow_mut_lamports_unchecked() += escrow_balance;

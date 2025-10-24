@@ -2,12 +2,14 @@ use pinocchio::{
     account_info::AccountInfo,
     program_error::ProgramError,
     pubkey::Pubkey,
+    sysvars::{rent::Rent, Sysvar},
     ProgramResult,
 };
 
 use crate::{
     error::HateFunError,
     state::{Bucket, pda},
+    verification::sum_balances,
 };
 
 /// CloseBucket instruction has no additional data
@@ -60,29 +62,35 @@ pub fn process_close_bucket(
     }
 
     // Verify escrows are empty (only contain rent-exempt balance, no user deposits)
-    // Escrows are PDAs that need ~890,880 lamports for rent exemption
-    // We consider them "empty" if they have less than 0.01 SOL (10,000,000 lamports)
-    // This accounts for rent-exempt minimum plus any dust
-    const ESCROW_EMPTY_THRESHOLD: u64 = 10_000_000; // 0.01 SOL
+    // FIX HF-01: Use actual rent-exempt minimum instead of arbitrary 0.01 SOL threshold
+    // This prevents creators from seizing legitimate deposits below the old threshold
+    let rent = Rent::get()?;
+    let rent_exempt_minimum = rent.minimum_balance(0); // ~890,880 lamports for empty account
 
     let escrow_a_balance = escrow_a.lamports();
     let escrow_b_balance = escrow_b.lamports();
 
-    if escrow_a_balance > ESCROW_EMPTY_THRESHOLD || escrow_b_balance > ESCROW_EMPTY_THRESHOLD {
+    // Allow closure only if escrows contain exactly rent-exempt amount (no user deposits)
+    if escrow_a_balance > rent_exempt_minimum || escrow_b_balance > rent_exempt_minimum {
         return Err(HateFunError::EscrowsNotEmpty.into());
     }
 
     // Calculate total to return (all PDA balances including rent)
-    let main_balance = main_bucket.lamports();
-    let bucket_balance = bucket_account.lamports();
-
-    let total = main_balance
-        .checked_add(bucket_balance)
-        .and_then(|sum| sum.checked_add(escrow_a_balance))
-        .and_then(|sum| sum.checked_add(escrow_b_balance))
-        .ok_or(HateFunError::Overflow)?;
+    // Use verified sum_balances function to prevent overflow
+    let balances = [
+        main_bucket.lamports(),
+        bucket_account.lamports(),
+        escrow_a_balance,
+        escrow_b_balance,
+    ];
+    let total = sum_balances(&balances).ok_or(HateFunError::Overflow)?;
 
     // Transfer all funds to creator
+    // SAFETY: These unsafe operations are justified because:
+    // 1. We've verified all account ownership and PDAs above
+    // 2. We've calculated total using verified sum_balances (no overflow)
+    // 3. The transaction is atomic - either all transfers succeed or none do
+    // 4. We zero out source accounts before crediting destination to prevent double-spend
     unsafe {
         *bucket_account.borrow_mut_lamports_unchecked() = 0;
         *main_bucket.borrow_mut_lamports_unchecked() = 0;
