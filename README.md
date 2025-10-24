@@ -2,6 +2,9 @@
 
 A Solana program that creates competitive bidding wars between two opposing parties, harnessing tribal psychology and game theory to maximize fundraising through escalating commitment.
 
+## 🎯 Shoutout
+- I want to give Anatoly a shout out for naming this
+
 ## 🎯 Concept
 
 hate.fun (formerly "Hate Bucket" / "Gate") enables anyone to create a fundraising competition between two rival groups. Think:
