@@ -30,6 +30,55 @@
 - Direct SOL transfers to PDAs (e.g., `main_bucket`) bypass program logic; documenting that these funds can be recovered by the creator before the first flip would help manage user expectations.
 - The program relies on unchecked lamport mutations; the explicit `overflow-checks = true` release profile mitigates wraparound, but adding helper functions that perform checked arithmetic around the unsafe blocks would harden the code further.
 
+## Formal Verification Results (Added: October 24, 2025)
+
+### Kani Formal Verification: ✅ PASSED
+
+Following the audit, formal verification was performed using Kani Rust Verifier 0.65.0 on critical arithmetic operations. **All 8 proof harnesses passed successfully.**
+
+#### Verified Properties:
+
+1. **Threshold Calculation (16 checks)** - Proves no overflow for `last_swap <= u64::MAX / 15000`
+2. **Payout Distribution Conservation (26 checks)** - Mathematically proves `creator + claimer + winner = total` (no value loss/gain)
+3. **Fee Validation (3 checks)** - Proves ≤20% enforcement
+4. **Min Increase Validation (1 check)** - Proves 1-50% bounds enforcement
+5. **Threshold Precision** - Proves no truncation exploits
+6. **HF-01 Documentation (2 checks)** - Formally documents the 0.01 SOL threshold vulnerability
+7. **Balance Summation** - Proves safe summation for realistic balances
+8. **Max Fee Calculation** - Proves 20% edge case is safe
+
+#### Key Findings:
+
+**✅ Arithmetic Safety:** All checked arithmetic operations proven safe from overflow/underflow for valid input ranges.
+
+**✅ Value Conservation:** Payout distribution mathematically proven to conserve total value exactly.
+
+**✅ HF-01 Confirmed:** Kani formally proves that balances ≤ 0.01 SOL (10,000,000 lamports) are treated as "empty", confirming the HF-01 vulnerability at the mathematical level.
+
+#### Verification Scope:
+
+**What Kani Verified:**
+- Pure arithmetic functions extracted from contract logic
+- Overflow/underflow prevention
+- Value conservation
+- Parameter validation correctness
+
+**What Kani Did NOT Verify:**
+- Solana-specific operations (PDA derivation, CPI calls, account validation)
+- Unsafe code blocks (lamports manipulation)
+- Multi-instruction flows and integration behavior
+
+These remain covered by integration tests and manual review.
+
+#### Documentation:
+
+- Full results: `VERIFICATION-RESULTS.md`
+- Setup guide: `KANI-VERIFICATION.md`
+- Verification code: `src/verification.rs`
+- CI/CD: `.github/workflows/kani-verify.yml`
+
+**Conclusion:** Formal verification provides mathematical proof of arithmetic correctness, complementing the manual audit and integration testing for comprehensive security assurance.
+
 ## Files Reviewed
 - `src/lib.rs`
 - `src/state.rs`

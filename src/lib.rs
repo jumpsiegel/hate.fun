@@ -4,6 +4,7 @@ pub mod state;
 pub mod instructions;
 pub mod error;
 pub mod system_program;
+pub mod verification;
 
 use instructions::process_instruction;
 

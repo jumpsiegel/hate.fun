@@ -149,8 +149,12 @@ cargo test
 
 **Unit tests:** `cargo test` ✅ (5/5 passing)
 **Integration tests:** `cargo test --test integration_client -- --ignored` ✅ (5/5 passing)
+**Formal verification:** `./scripts/verify-kani.sh` ✅ (8/8 proofs passing)
 
-All core functionality tested and verified, including the recent bug fix for close_bucket rent-exempt handling.
+All core functionality tested and verified, including:
+- Traditional unit and integration tests
+- Kani formal verification of arithmetic operations and security properties
+- Recent bug fix for close_bucket rent-exempt handling
 
 ### Native Testing (Recommended)
 
@@ -234,6 +238,7 @@ Yes, someone can flip control every 2.9 epochs to prevent payout. But this is in
 ## 📚 Documentation
 
 - **[spell.md](spell.md)** - Complete technical specification
+- **[KANI.md](KANI.md)** - Formal verification with Kani (complete guide)
 - **[NATIVE-TESTING.md](NATIVE-TESTING.md)** - Native testing setup guide
 - **[INTEGRATION_TESTS.md](INTEGRATION_TESTS.md)** - Integration test documentation
 - **[TESTING.md](TESTING.md)** - General testing guide

@@ -1,0 +1,99 @@
+name: Kani Formal Verification
+
+on:
+  push:
+    branches: [ main, dev ]
+    paths:
+      - 'src/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/kani-verify.yml'
+  pull_request:
+    branches: [ main, dev ]
+    paths:
+      - 'src/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  kani-verify:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Rust toolchain
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: stable
+
+    - name: Cache Kani
+      id: cache-kani
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/bin/cargo-kani
+          ~/.cargo/bin/kani
+          ~/.kani
+        key: ${{ runner.os }}-kani-${{ hashFiles('.github/workflows/kani-verify.yml') }}
+
+    - name: Install Kani
+      if: steps.cache-kani.outputs.cache-hit != 'true'
+      run: |
+        cargo install --locked kani-verifier
+        cargo kani setup
+
+    - name: Verify Kani installation
+      run: |
+        cargo kani --version
+        echo "✓ Kani is installed and ready"
+
+    - name: Run unit tests for verification module
+      run: |
+        echo "Running verification module unit tests..."
+        cargo test verification --lib
+
+    - name: Run Kani formal verification
+      run: |
+        echo "Running Kani formal verification..."
+        cargo kani --tests --output-format terse
+
+    - name: Upload verification results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: kani-verification-results
+        path: |
+          target/kani/
+          *.log
+
+    - name: Comment on PR (on success)
+      if: github.event_name == 'pull_request' && success()
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{secrets.GITHUB_TOKEN}}
+        script: |
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: '✅ **Kani Formal Verification: PASSED**\n\nAll 8 proof harnesses verified successfully:\n- ✓ Threshold calculations\n- ✓ Payout distribution conservation\n- ✓ Fee validation\n- ✓ Min increase validation\n- ✓ Threshold precision\n- ✓ HF-01 vulnerability check\n- ✓ Balance summation\n- ✓ Max fee calculation'
+          })
+
+    - name: Comment on PR (on failure)
+      if: github.event_name == 'pull_request' && failure()
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{secrets.GITHUB_TOKEN}}
+        script: |
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: '❌ **Kani Formal Verification: FAILED**\n\nOne or more proof harnesses failed verification. Please review the workflow logs for details.'
+          })

@@ -13,7 +13,7 @@ test-sbf = []
 pinocchio = "0.9"
 
 [lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"))'] }
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"))', 'cfg(kani)'] }
 
 [dev-dependencies]
 solana-sdk = "2.0"
